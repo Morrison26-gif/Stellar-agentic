@@ -39,20 +39,22 @@ export function App() {
         {/* Radial glow overlay */}
         <div className="fixed inset-0 bg-radial-glow pointer-events-none" />
 
-          <Sidebar />
+        <Sidebar />
 
-        <main className="flex flex-1 overflow-hidden relative">
-          <Routes>
-            <Route path="/" element={<OverviewPage />} />
-            <Route path="/agents" element={<AgentsPage />} />
-            <Route path="/payments" element={<PaymentsPage />} />
-            <Route path="/reports" element={<ReportsPage />} />
-            <Route path="/jobs" element={<JobsPage />} />
-            <Route path="/limits" element={<PlaceholderPage title="Rate Limits" />} />
-            <Route path="/alerts" element={<AlertsPage />} />
-            <Route path="/health" element={<HealthPage />} />
-            <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
-          </Routes>
+        <main className="flex flex-1 flex-col min-w-0 overflow-x-clip relative pt-14 md-pt-0">
+          <div className="flex-1 min-w-0 overflow-x-auto">
+            <Routes>
+              <Route path="/" element={<OverviewPage />} />
+              <Route path="/agents" element={<AgentsPage />} />
+              <Route path="/payments" element={<PaymentsPage />} />
+              <Route path="/reports" element={<ReportsPage />} />
+              <Route path="/jobs" element={<JobsPage />} />
+              <Route path="/limits" element={<PlaceholderPage title="Rate Limits" />} />
+              <Route path="/alerts" element={<AlertsPage />} />
+              <Route path="/health" element={<HealthPage />} />
+              <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
+            </Routes>
+          </div>
         </main>
       </div>
     </DashboardAgentBoundary>
