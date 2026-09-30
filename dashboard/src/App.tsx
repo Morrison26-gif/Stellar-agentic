@@ -8,6 +8,7 @@ import { JobsPage } from './pages/JobsPage.js';
 import { AlertsPage } from './pages/AlertsPage.js';
 import { HealthPage } from './pages/HealthPage.js';
 import { DashboardAgentBoundary } from './lib/chain/DashboardProvider.js';
+import { ThemeToggle } from './components/dashboard/ThemeToggle.js';
 
 function PlaceholderPage({ title }: { title: string }) {
   return (
@@ -42,6 +43,9 @@ export function App() {
           <Sidebar />
 
         <main className="flex flex-1 overflow-hidden relative">
+          <div className="absolute right-4 top-4 z-10">
+            <ThemeToggle />
+          </div>
           <Routes>
             <Route path="/" element={<OverviewPage />} />
             <Route path="/agents" element={<AgentsPage />} />
