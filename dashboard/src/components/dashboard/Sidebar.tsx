@@ -17,6 +17,7 @@ import {
 import { clsx } from 'clsx';
 import { DataModeBadge } from './DataModeBadge.js';
 import { useDashboard } from '../../lib/chain/DashboardProvider.js';
+import { WalletConnection } from './WalletConnection.js';
 import { X } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -120,8 +121,10 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         </ul>
       </nav>
 
-      {/* Data source */}
-      <DataModeBadge />
+      {/* Wallet Connection */}
+      <div className="p-4 border-t border-sa-border">
+        <WalletConnection />
+      </div>
 
       {/* Footer */}
       <div className="p-4 border-t border-sa-border space-y-2">
