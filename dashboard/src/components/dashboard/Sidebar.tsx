@@ -1,5 +1,4 @@
 import { NavLink } from 'react-router-dom';
-import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   LayoutDashboard,
@@ -15,10 +14,7 @@ import {
   FileBarChart,
 } from 'lucide-react';
 import { clsx } from 'clsx';
-import { DataModeBadge } from './DataModeBadge.js';
-import { useDashboard } from '../../lib/chain/DashboardProvider.js';
 import { WalletConnection } from './WalletConnection.js';
-import { X } from 'lucide-react';
 
 const NAV_ITEMS = [
   { to: '/', icon: LayoutDashboard, label: 'Overview' },
@@ -32,34 +28,11 @@ const NAV_ITEMS = [
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
-interface SidebarProps {
-  open?: boolean;
-  onClose?: () => void;
-}
-
-export function Sidebar({ open = false, onClose }: SidebarProps) {
+export function Sidebar() {
   const { config } = useDashboard();
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose?.();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
-
   return (
-    <aside
-      id="dashboard-sidebar"
-      className={clsx(
-        'w-60 shrink-0 flex flex-col bg-sa-surface border-r border-sa-border h-screen',
-        'fixed inset-y-0 left-0 z-40 transition-transform duration-200 ease-out',
-        'md:sticky md:top-0 md:z-auto md:translate-x-0',
-        open ? 'translate-x-0' : '-translate-x-full',
-      )}
-      aria-hidden={!open ? undefined : false}
-    >
+    <aside className="w-60 shrink-0 flex flex-col bg-sa-surface border-r border-sa-border h-screen sticky top-0">
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-5 py-5 border-b border-sa-border">
         <div className="w-8 h-8 rounded-lg bg-sa-accent/20 border border-sa-accent/30 flex items-center justify-center">
@@ -71,14 +44,6 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             v0.1.0 · {config.mode === 'mock' ? 'demo' : config.network}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close navigation"
-          className="ml-auto md:hidden p-1.5 rounded-md text-sa-text-dim hover:text-sa-text hover:bg-sa-bg/60"
-        >
-          <X size={16} />
-        </button>
       </div>
 
       {/* Nav */}
@@ -90,7 +55,6 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               <NavLink
                 to={to}
                 end={to === '/'}
-                onClick={() => onClose?.()}
                 className={({ isActive }) =>
                   clsx(
                     'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150',
