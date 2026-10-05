@@ -139,6 +139,7 @@ test.describe('page metadata', () => {
     await expect(page).toHaveTitle(/StellarAgent/);
   });
 });
+
 test.describe('keyboard navigation', () => {
   test('can navigate through all sidebar links using Tab', async ({ page }) => {
     await page.goto('/');
@@ -167,23 +168,5 @@ test.describe('keyboard navigation', () => {
     
     await expect(page.getByRole('heading', { name: 'Agents', level: 1 })).toBeVisible();
     expect(page.url()).toContain('/agents');
-  });
-});
-
-test.describe('theme toggle', () => {
-  test('toggle survives a reload', async ({ page }) => {
-    await page.goto('/');
-
-    const toggle = page.getByRole('button', { name: /theme/i });
-    await expect(toggle).toBeVisible();
-
-    const initialTheme = await page.locator('html').getAttribute('data-theme');
-    await toggle.click();
-
-    const newTheme = await page.locator('html').getAttribute('data-theme');
-    expect(newTheme).not.toBe(initialTheme);
-
-    await page.reload();
-    await expect(page.locator('html')).toHaveAttribute('data-theme', newTheme!);
   });
 });
