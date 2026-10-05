@@ -1,161 +1,119 @@
-"""Error types and mappings for the StellarAgent Python SDK.
-
-This module mirrors the TypeScript SDK's error handling for the
-escrow contract. The contract returns symbolic error codes (see
-``contracts/escrow/src/lib.rs``) which are translated into typed
-exceptions so callers can react programmatically.
-"""
+"""Error taxonomy for StellarAgent failures, mirroring packages/core/src/errors.ts."""
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+import re
+from typing import Literal
 
 __all__ = [
+    "StellarAgentErrorCode",
     "StellarAgentError",
-    "EscrowError",
-    "JobNotFoundError",
-    "JobNotOpenError",
-    "JobExpiredError",
-    "NotAuthorizedError",
-    "UnknownEscrowError",
-    "map_escrow_error",
-    "ESCROW_ERROR_CODES",
+    "InvalidArgumentError",
+    "contract_error",
+    "CONTRACT_ERROR_MAPPINGS",
+]
+
+StellarAgentErrorCode = Literal[
+    "INVALID_ARGUMENT",
+    "NO_ACTIVE_CHANNEL",
+    "NO_ROUTE",
+    "QUOTE_EXPIRED",
+    "INVALID_ROUTE_OVERRIDE",
+    "INSUFFICIENT_LIQUIDITY",
+    "VENUE_UNAVAILABLE",
+    "SPEND_LIMIT_EXCEEDED",
+    "CHANNEL_NOT_FOUND",
+    "CHANNEL_CLOSED",
+    "JOB_NOT_FOUND",
+    "JOB_NOT_OPEN",
+    "JOB_EXPIRED",
+    "NOT_AUTHORIZED",
+    "RATE_LIMIT_NOT_FOUND",
+    "CONTRACT_ERROR",
+    "SIMULATION_FAILED",
+    "SUBMISSION_FAILED",
+    "TRANSACTION_FAILED",
+    "TRANSACTION_TIMEOUT",
+    "NETWORK_ERROR",
 ]
 
 
-class StellarAgentError(Exception):
-    """Base class for all StellarAgent SDK errors."""
-
-    default_code: Optional[str] = None
+class StellarAgentError(RuntimeError):
+    """Error thrown for SDK validation, Soroban RPC, and contract failures."""
 
     def __init__(
         self,
+        code: StellarAgentErrorCode,
         message: str,
         *,
-        code: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
+        cause: Exception | None = None,
+        transaction_hash: str | None = None,
     ) -> None:
         super().__init__(message)
-        self.message = message
-        self.code = code if code is not None else self.default_code
-        self.details: Dict[str, Any] = dict(details or {})
+        self.code: StellarAgentErrorCode = code
+        self.message: str = message
+        self.cause: Exception | None = cause
+        self.transaction_hash: str | None = transaction_hash
+
+    def __str__(self) -> str:
+        return self.message
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}({self.message!r}, code={self.code!r})"
+        return (
+            f"StellarAgentError(code={self.code!r}, message={self.message!r}, "
+            f"transaction_hash={self.transaction_hash!r})"
+        )
 
 
-class EscrowError(StellarAgentError):
-    """Base class for errors reported by the Escrow contract."""
+class InvalidArgumentError(StellarAgentError, ValueError):
+    """Error thrown when an argument is invalid (subclasses both StellarAgentError and ValueError)."""
+
+    def __init__(
+        self,
+        code: StellarAgentErrorCode = "INVALID_ARGUMENT",
+        message: str = "Invalid argument",
+        *,
+        cause: Exception | None = None,
+        transaction_hash: str | None = None,
+    ) -> None:
+        super().__init__(code, message, cause=cause, transaction_hash=transaction_hash)
 
 
-class JobNotFoundError(EscrowError):
-    """Raised when the requested job id does not exist."""
-
-    default_code = "JOB_NOT_FOUND"
-
-
-class JobNotOpenError(EscrowError):
-    """Raised when a job is not in the expected open state."""
-
-    default_code = "JOB_NOT_OPEN"
-
-
-class JobExpiredError(EscrowError):
-    """Raised when a job has expired."""
-
-    default_code = "JOB_EXPIRED"
-
-
-class NotAuthorizedError(EscrowError):
-    """Raised when the caller is not authorized for the operation."""
-
-    default_code = "NOT_AUTHORIZED"
+CONTRACT_ERROR_MAPPINGS: list[tuple[re.Pattern[str], StellarAgentErrorCode]] = [
+    (re.compile(r"spend limit exceeded", re.IGNORECASE), "SPEND_LIMIT_EXCEEDED"),
+    (re.compile(r"channel not found", re.IGNORECASE), "CHANNEL_NOT_FOUND"),
+    (re.compile(r"channel is closed", re.IGNORECASE), "CHANNEL_CLOSED"),
+    (re.compile(r"job not found", re.IGNORECASE), "JOB_NOT_FOUND"),
+    (re.compile(r"job is not open", re.IGNORECASE), "JOB_NOT_OPEN"),
+    (re.compile(r"job has expired", re.IGNORECASE), "JOB_EXPIRED"),
+    (
+        re.compile(r"not (?:the )?(?:authorized|assigned)|not authorized", re.IGNORECASE),
+        "NOT_AUTHORIZED",
+    ),
+    (re.compile(r"no rate limit|limit not found", re.IGNORECASE), "RATE_LIMIT_NOT_FOUND"),
+    (
+        re.compile(
+            r"(?:amount|deposit|limit).*(?:positive|invalid)|deadline must", re.IGNORECASE
+        ),
+        "INVALID_ARGUMENT",
+    ),
+]
 
 
-class UnknownEscrowError(EscrowError):
-    """Raised for any escrow error code we do not yet map."""
-
-
-ESCROW_ERROR_CODES: Dict[str, type[EscrowError]] = {
-    "JOB_NOT_FOUND": JobNotFoundError,
-    "JOB_NOT_OPEN": JobNotOpenError,
-    "JOB_EXPIRED": JobExpiredError,
-    "NOT_AUTHORIZED": NotAuthorizedError,
-}
-
-
-def _extract_code(error: Any) -> Optional[str]:
-    """Best-effort extraction of a contract error code from a raw error.
-
-    The Soroban Python SDK surfaces contract errors in a few different
-    shapes depending on the transport and version. We accept any of the
-    following:
-
-    * a plain string (already the code)
-    * an exception with a `.code` attribute
-    * an exception whose message contains the code
-    * a dict with a `code` or `message` field
-    """
-    if error is None:
-        return None
-
-    if isinstance(error, str):
-        return _match_code(error)
-
-    if isinstance(error, dict):
-        for key in ("code", "message", "error"):
-            value = error.get(key)
-            if isinstance(value, str):
-                matched = _match_code(value)
-                if matched is not None:
-                    return matched
-        return None
-
-    code_attr = getattr(error, "code", None)
-    if isinstance(code_attr, str):
-        matched = _match_code(code_attr)
-        if matched is not None:
-            return matched
-
-    message = getattr(error, "message", None)
-    if isinstance(message, str):
-        matched = _match_code(message)
-        if matched is not None:
-            return matched
-
-    return None
-
-
-def _match_code(text: str) -> Optional[str]:
-    """Return the first known escrow code found in *text*."""
-    for code in ESCROW_ERROR_CODES:
-        if code in text:
-            return code
-    return None
-
-
-def map_escrow_error(error: Any, *, context: Optional[str] = None) -> EscrowError:
-    """Translate a raw error from the Escrow contract into a typed error.
-
-    This mirrors the TypeScript SDK's error mapping: the four known
-    contract codes become dedicated exception classes and everything else
-    falls back to :class:`UnknownEscrowError`. If *error* is already an
-: class:`EscrowError` it is returned unchanged so the function is idempotent.
-    """
-    if isinstance(error, EscrowError):
-        return error
-
-    code = _extract_code(error)
-    details: Dict[str, Any] = {}
-    if context is not None:
-        details["context"] = context
-    if error is not None:
-        details["raw"] = str(error)
-
-    error_cls = ESCROW_ERROR_CODES.get(code or "")
-    if error_cls is None:
-        message = f":{ra}" if error is not None else "Unknown escrow error"
-        return UnknownEscrowError(message, code=code, details=details)
-
-    message = f"{error_cls.default_code}: {error!r}"
-    return error_cls(message, code=error_cls.default_code, details=details)
+def contract_error(
+    fallback: StellarAgentErrorCode,
+    message: str,
+    transaction_hash: str | None = None,
+    cause: Exception | None = None,
+) -> StellarAgentError:
+    """Map a raw contract-panic or RPC failure message to a stable machine-readable code."""
+    for pattern, code in CONTRACT_ERROR_MAPPINGS:
+        if pattern.search(message):
+            if code == "INVALID_ARGUMENT":
+                return InvalidArgumentError(
+                    code, message, cause=cause, transaction_hash=transaction_hash
+                )
+            return StellarAgentError(code, message, cause=cause, transaction_hash=transaction_hash)
+    if fallback == "INVALID_ARGUMENT":
+        return InvalidArgumentError(fallback, message, cause=cause, transaction_hash=transaction_hash)
+    return StellarAgentError(fallback, message, cause=cause, transaction_hash=transaction_hash)
