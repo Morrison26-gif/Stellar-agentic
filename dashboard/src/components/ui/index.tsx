@@ -1,8 +1,8 @@
 import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
 import type { ReactNode } from 'react';
-import { useEffect, useState } from 'react';
 import { pctNumber, clamp100 } from '../../lib/deterministic-math.js';
+import type { AgentInfo } from '@stellaragent/core';
 
 // ─── Badge ────────────────────────────────────────────────────────────────────
 
@@ -168,93 +168,69 @@ export function SectionHeader({ title, subtitle, action }: SectionHeaderProps) {
   );
 }
 
-// ─── useCircuitBreaker ────────────────────────────────────────────────────────
+// ─── AgentList ────────────────────────────────────────────────────────────────
 
-export interface CircuitBreakerState {
-  paused: boolean;
-  quorum: number;
-  quorumMet: boolean;
-  refresh: () => void;
+interface AgentListProps {
+  agents: AgentInfo[];
+  isActive?: (address: string) => boolean;
+  onSelect?: (agent: AgentInfo) => void;
+  emptyMessage?: string;
 }
 
-export interface CircuitBreakerLike {
-  isPaused?: () => boolean;
-  paused?: boolean;
-  quorum?: number;
-  quorumCount?: number;
-  quorumMet?: boolean;
-  getState?: () => {
-    paused?: boolean;
-    quorum?: number;
-    quorumCount?: number;
-    quorumMet?: boolean;
-  };
-}
-
-const DEFAULT_POLL_INTERVAL_MS = 5_000;
-
-function readBreakerState(breaker: CircuitBreakerLike | null | undefined): {
-  paused: boolean;
-  quorum: number;
-  quorumMet: boolean;
-} {
-  if (!breaker) {
-    return { paused: false, quorum: 0, quorumMet: false };
+export function AgentList({
+  agents,
+  isActive,
+  onSelect,
+  emptyMessage = 'No agents found for this owner.',
+}: AgentListProps) {
+  if (agents.length === 0) {
+    return <EmptyState message={emptyMessage} />;
   }
 
-  const snapshot =
-    typeof breaker.getState === 'function' ? breaker.getState() ?? {} : {};
-
-  const paused =
-    typeof breaker.isPaused === 'function'
-      ? breaker.isPaused()
-      : snapshot.paused ?? breaker.paused ?? false;
-
-  const quorum =
-    snapshot.quorum ?? snapshot.quorumCount ?? breaker.quorum ?? breaker.quorumCount ?? 0;
-
-  const quorumMet = snapshot.quorumMet ?? breaker.quorumMet ?? false;
-
-  return { paused: Boolean(paused), quorum, quorumMet: Boolean(quorumMet) };
+  return (
+    <ul className="flex flex-col gap-2">
+      {agents.map((agent) => {
+        const active = isActive ? isActive(agent.address) : agent.active;
+        return (
+          <li
+            key={agent.address}
+            className={clsx(
+              'flex items-center justify-between rounded border border-sa-border bg-sa-surface/60 px-3 py-2',
+              onSelect && 'cursor-pointer hover:border-sa-accent/40 transition-colors',
+            )}
+            onClick={onSelect ? () => onSelect(agent) : undefined}
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <StatusDot status={active ? 'active' : 'inactive'} />
+              <div className="min-w-0">
+                <p className="text-sm text-sa-text truncate">{agent.name ?? 'Unnamed agent'}</p>
+                <AddressChip address={agent.address} />
+              </div>
+            </div>
+            <Badge variant={active ? 'success' : 'neutral'}>
+              {active ? 'active' : 'inactive'}
+            </Badge>
+          </li>
+        );
+      })}
+    </ul>
+  );
 }
 
-/**
- * Polls a CircuitBreaker instance and surfaces its paused state, quorum
- * counts, and a manual refresh function. Uses the same polling cadence
- * convention as the other hooks in this package.
- */
-export function useCircuitBreaker(
-  breaker?: CircuitBreakerLike | null,
-  intervalMs: number = DEFAULT_POLL_INTERVAL_MS,
-): CircuitBreakerState {
-  const [state, setState] = useState(() => readBreakerState(breaker));
-  const [tick, setTick] = useState(0);
+// ─── TotalAgentsBadge ─────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    setState(readBreakerState(breaker));
+interface TotalAgentsBadgeProps {
+  total: number;
+  label?: string;
+}
 
-    if (!breaker || intervalMs <= 0) {
-      return;
-    }
-
-    const id = setInterval(() => {
-      setState(readBreakerState(breaker));
-    }, intervalMs);
-
-    return () => clearInterval(id);
-  }, [breaker, intervalMs, tick]);
-
-  const refresh = () => {
-    setState(readBreakerState(breaker));
-    setTick((n) => n + 1);
-  };
-
-  return {
-    paused: state.paused,
-    quorum: state.quorum,
-    quorumMet: state.quorumMet,
-    refresh,
-  };
+export function TotalAgentsBadge({ total, label = 'agents' }: TotalAgentsBadgeProps) {
+  return (
+    <Badge variant="info" size="md">
+      <span className="font-mono">{total}</span>
+      <span>{label}</span>
+    </Badge>
+  );
 }
 
 // ─── EmptyState ──────────────────────────────────────────────────────────────
@@ -266,6 +242,27 @@ export function EmptyState({ message }: { message: string }) {
         <span className="text-xl">∅</span>
       </div>
       <p className="text-sm">{message}</p>
+    </div>
+  );
+}
+
+// ─── CostEstimate ─────────────────────────────────────────────────────────────
+
+interface CostEstimateProps {
+  minResourceFee?: string;
+  cpuInsns?: string;
+  memBytes?: string;
+  simulateOnly?: boolean;
+}
+
+export function CostEstimate({ minResourceFee, cpuInsns, memBytes, simulateOnly }: CostEstimateProps) {
+  if (!minResourceFee && !cpuInsns && !memBytes) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs text-sa-text-dim">
+      {simulateOnly && <Badge variant="info">simulation</Badge>}
+      {minResourceFee && <span className="font-mono">fee: {minResourceFee}</span>}
+      {cpuInsns && <span className="font-mono">cpu: {cpuInsns}</span>}
+      {memBytes && <span className="font-mono">mem: {memBytes}</span>}
     </div>
   );
 }
