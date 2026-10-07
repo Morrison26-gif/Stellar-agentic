@@ -93,8 +93,7 @@ def estimate_time_until_ledger(
     return remaining * estimate_ledger_close_seconds(avg_ledger_close_seconds)
 
 
-@dataclass
-frozen=True
+@dataclass(frozen=True)
 class LedgerCloseEstimate:
     """The shape `STellarAgent.getLedgerCloseEstimate()` returns.
 
